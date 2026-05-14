@@ -64,6 +64,33 @@ Outputs (defaults):
 - `public/llms.txt`       — short curated index
 - `public/llms-full.txt`  — per-endpoint reference (params, request body, response examples)
 
+## Commands
+
+### `php artisan llms:generate`
+
+Walks every route whose middleware chain includes the marker, runs the inspectors, and writes `llms.txt` + `llms-full.txt`.
+
+| Option | Description |
+|---|---|
+| `--out=…` | Override the llms.txt output path |
+| `--out-full=…` | Override the llms-full.txt output path |
+| `--overlay=…` | Path to an OpenAPI 3 JSON to merge in (overrides config) |
+| `--dry-run` | Print to stdout instead of writing |
+
+### `php artisan llms:cleanup-local`
+
+If you developed against this package as a path repository (e.g. `packages/fhferreira/llms-txt/`) and have since switched to a normal `composer require`, this command removes the leftover in-repo copy so the autoloader uses only the `vendor/` version.
+
+| Option | Description |
+|---|---|
+| `--path=…` | Path to the in-repo copy (default: `packages/fhferreira/llms-txt`) |
+| `--force` | Skip the interactive confirmation prompt |
+
+Safety:
+- Refuses to delete if this command is itself loaded from the target path.
+- Walks up the parent directories and removes them only if empty (so `packages/other/...` won't be touched).
+- Idempotent: no-op if the target doesn't exist.
+
 ## Configuration
 
 See `config/llms-txt.php` after publishing. Highlights:

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Fhferreira\LlmsTxt;
 
+use Fhferreira\LlmsTxt\Console\CleanupLocalCommand;
 use Fhferreira\LlmsTxt\Console\GenerateCommand;
 use Fhferreira\LlmsTxt\Http\Middleware\Llms as LlmsMiddleware;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
@@ -25,7 +26,10 @@ final class LlmsTxtServiceProvider extends ServiceProvider
         $router->aliasMiddleware($marker, LlmsMiddleware::class);
 
         if ($this->app->runningInConsole()) {
-            $this->commands([GenerateCommand::class]);
+            $this->commands([
+                GenerateCommand::class,
+                CleanupLocalCommand::class,
+            ]);
 
             $this->publishes([
                 __DIR__ . '/../config/llms-txt.php' => config_path('llms-txt.php'),
