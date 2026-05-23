@@ -17,6 +17,11 @@
         "phpunit/phpunit": "^10.5|^11.0",
         "orchestra/testbench": "^8.0|^9.0|^10.0"
     },
+    "suggest": {
+        "mcp/sdk": "Required to run the dynamic MCP server backed by llms-mcp.json (stdio command + HTTP controller).",
+        "symfony/psr-http-message-bridge": "Required when mounting the HTTP MCP controller, so Laravel Request ↔ PSR-7 conversion works.",
+        "nyholm/psr7": "Concrete PSR-7/PSR-17 implementation used by the HTTP MCP controller for request/response factories."
+    },
     "autoload": {
         "psr-4": {
             "Fhferreira\\LlmsTxt\\": "src/"

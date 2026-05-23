@@ -106,4 +106,21 @@ return [
     |
     */
     'grouping' => 'tag',
+
+    /*
+    |--------------------------------------------------------------------------
+    | MCP server (php artisan llms:serve-mcp)
+    |--------------------------------------------------------------------------
+    |
+    | Settings for the dynamic MCP server backed by llms-mcp.json. The server
+    | itself is opt-in: install `mcp/sdk` to enable the command.
+    |
+    | `bearer_token` is injected as `Authorization: Bearer …` on every internal
+    | route dispatch. Use it when your routes require auth and the MCP client
+    | runs in a trusted local context.
+    |
+    */
+    'mcp' => [
+        'bearer_token' => env('LLMS_TXT_MCP_TOKEN'),
+    ],
 ];

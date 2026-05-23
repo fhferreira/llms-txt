@@ -135,6 +135,82 @@ class OrderAPIController
 }
 ```
 
+## Running the MCP server
+
+The catalog `llms-mcp.json` is also a live runtime spec — install [`mcp/sdk`](https://github.com/modelcontextprotocol/php-sdk) and the package can stand up an MCP server that proxies every catalogued route. Two entry points share the same dispatcher and tool registration:
+
+| Transport | Use for | Token strategy |
+|---|---|---|
+| **HTTP** (`McpController`) | Hosted MCP — many users hit one server | **Bearer passthrough** by default: the `Authorization: Bearer …` on the incoming MCP request is reused on every internal Laravel dispatch, exactly as if the caller had hit the API directly |
+| **stdio** (`llms:serve-mcp`) | Local single-user, Claude Desktop, etc. | Static token from CLI flag / config / env, or per-call resolver |
+
+### HTTP — mount the controller
+
+```bash
+composer require mcp/sdk symfony/psr-http-message-bridge nyholm/psr7
+```
+
+```php
+// routes/api.php
+use Fhferreira\LlmsTxt\Http\Controllers\McpController;
+
+Route::any('/mcp', McpController::class)->middleware(['throttle:60,1']);
+```
+
+End-to-end flow:
+
+1. The user (e.g. in Claude) asks something like _"list my 10 latest orders and the average amount"_.
+2. The MCP client sends a `tools/call` request to `https://your-app/mcp` with the user's `Authorization: Bearer …` header.
+3. `McpController` reads `request()->bearerToken()` and registers it as the dispatcher's per-call token.
+4. The MCP server invokes the right tool (e.g. `v3_orders_list`), and the dispatcher calls the underlying Laravel route in-process with the *same* bearer header — full auth/throttle/CORS middleware still runs.
+5. The route's JSON response is returned to the MCP client; the LLM reads it and answers the user.
+
+A single MCP process serves many users — each request carries its own token.
+
+### `php artisan llms:serve-mcp` (stdio)
+
+Boot a stdio MCP server backed by the routes catalogued in `llms-mcp.json`. Each `tools[]` entry is registered dynamically against the [`mcp/sdk`](https://github.com/modelcontextprotocol/php-sdk) builder; tool calls are dispatched through Laravel's HTTP kernel in-process so the full middleware chain (auth, throttle, CORS, …) still runs — no socket hop, no extra base URL needed.
+
+```bash
+composer require mcp/sdk         # opt-in dependency
+php artisan llms:generate        # regenerate the catalog
+php artisan llms:serve-mcp       # stdio MCP server reads it on boot
+```
+
+| Option | Description |
+|---|---|
+| `--catalog=…` | Path to llms-mcp.json (default: `output.llms_mcp_json` from config) |
+| `--token=…` | Static bearer token injected on every internal dispatch. Overridden by a per-call resolver if one is bound (see below). |
+
+Args are routed by the `in:` extension on each `input_schema` property — `"in": "path"` substitutes the URI placeholder, `"in": "query"` becomes a query-string parameter, `"in": "body"` lands in a JSON body. Unknown args default to query for `GET`/`HEAD`/`DELETE` and body otherwise.
+
+If `mcp/sdk` isn't installed, the command exits with a friendly message instead of fataling.
+
+#### Per-call token resolver (SaaS / multi-tenant)
+
+A single MCP process can serve many users — bind a `Closure` returning the right bearer token at dispatch time:
+
+```php
+// AppServiceProvider::register()
+use Fhferreira\LlmsTxt\Console\ServeMcpCommand;
+
+$this->app->singleton(ServeMcpCommand::TOKEN_RESOLVER, function () {
+    // The resolver receives the tool spec + raw args and returns the bearer
+    // (or null to send no Authorization header). Use any signal you like —
+    // session, args, env, an external token service, etc.
+    return function (array $tool, array $args): ?string {
+        return app('current-user-token-store')->forShop($args['storename'] ?? null);
+    };
+});
+```
+
+Resolution priority inside `llms:serve-mcp`:
+
+1. Closure bound to `Fhferreira\LlmsTxt\Console\ServeMcpCommand::TOKEN_RESOLVER` — wins.
+2. `--token=` CLI flag (static).
+3. `config('llms-txt.mcp.bearer_token')` / `LLMS_TXT_MCP_TOKEN` env (static).
+4. Nothing — no `Authorization` header sent.
+
 ### `php artisan llms:cleanup-local`
 
 If you developed against this package as a path repository (e.g. `packages/fhferreira/llms-txt/`) and have since switched to a normal `composer require`, this command removes the leftover in-repo copy so the autoloader uses only the `vendor/` version.
@@ -158,6 +234,7 @@ See `config/llms-txt.php` after publishing. Highlights:
 | `middleware_marker` | Alias used to tag routes (default: `llms`) |
 | `api.*` | Title, base URL, auth note shown at top of generated files |
 | `output.llms_txt` / `output.llms_full_txt` / `output.llms_mcp_json` | Destination paths |
+| `mcp.bearer_token` | Bearer token (or `LLMS_TXT_MCP_TOKEN` env) injected on every request dispatched by `llms:serve-mcp` |
 | `openapi_overlay` | Optional path to an existing OpenAPI 3 JSON. When set, response/request examples and richer descriptions are merged in by path match. |
 | `grouping` | `tag` (from overlay), `controller`, or `prefix` |
 

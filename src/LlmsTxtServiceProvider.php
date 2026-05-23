@@ -6,6 +6,7 @@ namespace Fhferreira\LlmsTxt;
 
 use Fhferreira\LlmsTxt\Console\CleanupLocalCommand;
 use Fhferreira\LlmsTxt\Console\GenerateCommand;
+use Fhferreira\LlmsTxt\Console\ServeMcpCommand;
 use Fhferreira\LlmsTxt\Http\Middleware\Llms as LlmsMiddleware;
 use Illuminate\Contracts\Http\Kernel as HttpKernel;
 use Illuminate\Routing\Router;
@@ -29,6 +30,7 @@ final class LlmsTxtServiceProvider extends ServiceProvider
             $this->commands([
                 GenerateCommand::class,
                 CleanupLocalCommand::class,
+                ServeMcpCommand::class,
             ]);
 
             $this->publishes([
