@@ -23,8 +23,14 @@ return [
     |
     */
     'api' => [
-        'title'       => env('LLMS_TXT_TITLE', config('app.name', 'API') . ' — LLM Guide'),
-        'base_url'    => env('LLMS_TXT_BASE_URL', config('app.url')),
+        // Branding for the generated guide. Defaults are intentionally generic
+        // — set LLMS_TXT_TITLE / LLMS_TXT_BASE_URL in the deployed `.env` to
+        // force the values, instead of inheriting from `app.name` / `app.url`
+        // (which often hold framework-internal names like "CartX-FrontEnd" or
+        // local URLs like "myapp.local" that aren't appropriate for a public
+        // LLM-facing guide).
+        'title'       => env('LLMS_TXT_TITLE', 'API LLM Guide'),
+        'base_url'    => env('LLMS_TXT_BASE_URL'),
         'version'     => env('LLMS_TXT_VERSION', '1.0'),
         'description' => env(
             'LLMS_TXT_DESCRIPTION',

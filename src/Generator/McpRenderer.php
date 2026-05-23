@@ -221,45 +221,138 @@ final class McpRenderer
      */
     private function inputSchema(array $e): array
     {
-        $properties = [];
-        $required   = [];
+        // Working tree built incrementally so dot-paths produce nested objects
+        // and `*` segments produce arrays. Finalised at the end into JSON Schema.
+        $root = ['type' => 'object', 'properties' => [], 'required' => []];
 
         foreach ($e['parameters'] as $p) {
             $name = (string) $p['name'];
-            if ($name === '' || isset($properties[$name])) {
+            if ($name === '') {
                 continue;
             }
-            if (! empty($p['rules']) && is_array($p['rules'])) {
-                $built = RulesToJsonSchema::convert($p['rules']);
-                $prop  = $built['schema'];
-                if ($built['required']) {
-                    $required[] = $name;
-                }
-            } else {
-                $prop = ['type' => $p['type'] ?? 'string'];
-                if (! empty($p['required'])) {
-                    $required[] = $name;
-                }
-            }
-            if (! empty($p['description'])) {
-                $prop['description'] = (string) $p['description'];
-            }
-            if (! empty($p['in'])) {
-                $prop['in'] = (string) $p['in'];
-            }
-            $properties[$name] = $prop;
+            [$leaf, $leafRequired] = $this->buildLeaf($p);
+            $segments = explode('.', $name);
+            $this->insertAt($root, $segments, $leaf, $leafRequired);
         }
 
-        $schema = [
-            'type'                 => 'object',
-            'properties'           => (object) $properties,
-            'additionalProperties' => false,
-        ];
-        if ($required !== []) {
-            $schema['required'] = array_values(array_unique($required));
+        return $this->finalizeNode($root);
+    }
+
+    /**
+     * Build the JSON Schema fragment for a single param entry.
+     *
+     * @return array{0: array<string, mixed>, 1: bool}  [schema, isRequired]
+     */
+    private function buildLeaf(array $p): array
+    {
+        if (! empty($p['rules']) && is_array($p['rules'])) {
+            $built = RulesToJsonSchema::convert($p['rules']);
+            $prop  = $built['schema'];
+            $req   = (bool) $built['required'];
+        } else {
+            $prop = ['type' => $p['type'] ?? 'string'];
+            $req  = ! empty($p['required']);
+        }
+        if (! empty($p['description'])) {
+            $prop['description'] = (string) $p['description'];
+        }
+        if (! empty($p['in'])) {
+            $prop['in'] = (string) $p['in'];
+        }
+        return [$prop, $req];
+    }
+
+    /**
+     * Place a leaf schema into the working tree at the given dot-path.
+     *
+     * Tree shape: each node is `['type'=>'object', 'properties'=>[name=>node],
+     * 'required'=>[]]` or `['type'=>'array', 'items'=>node]` or a leaf schema
+     * (any other associative array).
+     *
+     * @param  array<int, string>  $segments
+     * @param  array<string, mixed>  $leaf
+     */
+    private function insertAt(array &$node, array $segments, array $leaf, bool $isRequired): void
+    {
+        $head = array_shift($segments);
+        if ($head === null) {
+            return;
         }
 
-        return $schema;
+        // Leaf placement
+        if ($segments === []) {
+            if ($head === '*') {
+                $node['items'] = $leaf;
+                return;
+            }
+            $node['properties'][$head] = $leaf;
+            if ($isRequired) {
+                $node['required'][] = $head;
+            }
+            return;
+        }
+
+        // Wildcard inside path: current node must be an array; recurse into its items.
+        if ($head === '*') {
+            if (! isset($node['items']) || ($node['items']['type'] ?? null) !== 'object') {
+                $node['items'] = ['type' => 'object', 'properties' => [], 'required' => []];
+            }
+            $this->insertAt($node['items'], $segments, $leaf, $isRequired);
+            return;
+        }
+
+        // Look ahead: next segment === '*' means this property is an array.
+        $next = $segments[0];
+        if ($next === '*') {
+            if (! isset($node['properties'][$head]) || ($node['properties'][$head]['type'] ?? null) !== 'array') {
+                $node['properties'][$head] = ['type' => 'array', 'items' => ['type' => 'object', 'properties' => [], 'required' => []]];
+            }
+            $this->insertAt($node['properties'][$head], $segments, $leaf, $isRequired);
+            return;
+        }
+
+        // Plain nested object segment.
+        if (! isset($node['properties'][$head]) || ($node['properties'][$head]['type'] ?? null) !== 'object') {
+            $node['properties'][$head] = ['type' => 'object', 'properties' => [], 'required' => []];
+        }
+        $this->insertAt($node['properties'][$head], $segments, $leaf, $isRequired);
+    }
+
+    /**
+     * Convert the working tree into JSON Schema (properties → object, required[] dedup).
+     *
+     * @param  array<string, mixed>  $node
+     * @return array<string, mixed>
+     */
+    private function finalizeNode(array $node): array
+    {
+        $type = $node['type'] ?? null;
+
+        if ($type === 'object') {
+            $finalProps = [];
+            foreach ($node['properties'] as $name => $child) {
+                $finalProps[$name] = $this->finalizeNode($child);
+            }
+            $out = [
+                'type'                 => 'object',
+                'properties'           => (object) $finalProps,
+                'additionalProperties' => false,
+            ];
+            if (! empty($node['required'])) {
+                $out['required'] = array_values(array_unique($node['required']));
+            }
+            return $out;
+        }
+
+        if ($type === 'array') {
+            return [
+                'type'  => 'array',
+                'items' => isset($node['items']) ? $this->finalizeNode($node['items']) : (object) [],
+            ];
+        }
+
+        // Leaf (already a JSON Schema fragment) — pass through.
+        return $node;
     }
 
     /**

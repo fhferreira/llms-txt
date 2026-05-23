@@ -10,7 +10,8 @@
         "illuminate/contracts": "^11.0|^12.0",
         "illuminate/http": "^11.0|^12.0",
         "illuminate/routing": "^11.0|^12.0",
-        "illuminate/support": "^11.0|^12.0"
+        "illuminate/support": "^11.0|^12.0",
+        "nikic/php-parser": "^4.18 || ^5.0"
     },
     "require-dev": {
         "phpunit/phpunit": "^10.5|^11.0",
@@ -35,6 +36,12 @@
                 "Fhferreira\\LlmsTxt\\LlmsTxtServiceProvider"
             ]
         }
+    },
+    "config": {
+        "platform": {
+            "php": "8.2.0"
+        },
+        "sort-packages": true
     },
     "minimum-stability": "stable"
 }

@@ -169,6 +169,108 @@ final class McpRendererTest extends TestCase
         self::assertSame(1, $doc['endpoints'][0]['responses']['200']['example']['id']);
     }
 
+    #[Test]
+    public function dot_path_parameter_nests_into_object(): void
+    {
+        $json = (new McpRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'method' => 'POST',
+                'parameters' => [
+                    ['name' => 'storename', 'in' => 'path', 'required' => true, 'type' => 'string', 'description' => null, 'example' => null],
+                    ['name' => 'image.src', 'in' => 'body', 'required' => false, 'type' => 'string', 'description' => null, 'example' => null, 'rules' => ['string', 'max:255']],
+                    ['name' => 'image.position', 'in' => 'body', 'required' => false, 'type' => 'integer', 'description' => null, 'example' => null, 'rules' => ['integer', 'gt:0']],
+                ],
+            ]),
+        ]));
+        $doc  = $this->decode($json);
+        $props = $doc['tools'][0]['input_schema']['properties'];
+
+        self::assertSame('object', $props['image']['type']);
+        self::assertSame('string', $props['image']['properties']['src']['type']);
+        self::assertSame(255, $props['image']['properties']['src']['maxLength']);
+        self::assertSame('integer', $props['image']['properties']['position']['type']);
+        self::assertSame(0, $props['image']['properties']['position']['exclusiveMinimum'] ?? null,
+            'gt:0 should translate to exclusiveMinimum:0 on integer');
+        self::assertFalse(isset($props['image.src']),  'dot-path key must not appear flat');
+    }
+
+    #[Test]
+    public function wildcard_segment_produces_array_of_objects(): void
+    {
+        $json = (new McpRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'method' => 'POST',
+                'parameters' => [
+                    ['name' => 'storename', 'in' => 'path', 'required' => true, 'type' => 'string', 'description' => null, 'example' => null],
+                    ['name' => 'line_items.*.variant_id', 'in' => 'body', 'required' => true, 'type' => 'number', 'description' => null, 'example' => null, 'rules' => ['required', 'numeric']],
+                    ['name' => 'line_items.*.quantity',   'in' => 'body', 'required' => true, 'type' => 'number', 'description' => null, 'example' => null, 'rules' => ['required', 'numeric']],
+                ],
+            ]),
+        ]));
+        $doc  = $this->decode($json);
+        $line = $doc['tools'][0]['input_schema']['properties']['line_items'];
+
+        self::assertSame('array',  $line['type']);
+        self::assertSame('object', $line['items']['type']);
+        self::assertSame('number', $line['items']['properties']['variant_id']['type']);
+        self::assertSame('number', $line['items']['properties']['quantity']['type']);
+        self::assertEqualsCanonicalizing(['variant_id', 'quantity'], $line['items']['required']);
+    }
+
+    #[Test]
+    public function leaf_wildcard_produces_array_of_primitives(): void
+    {
+        $json = (new McpRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'method' => 'POST',
+                'parameters' => [
+                    ['name' => 'storename', 'in' => 'path', 'required' => true, 'type' => 'string', 'description' => null, 'example' => null],
+                    ['name' => 'tags.*', 'in' => 'body', 'required' => false, 'type' => 'string', 'description' => null, 'example' => null, 'rules' => ['string', 'min:1']],
+                ],
+            ]),
+        ]));
+        $doc  = $this->decode($json);
+        $tags = $doc['tools'][0]['input_schema']['properties']['tags'];
+
+        self::assertSame('array', $tags['type']);
+        self::assertSame('string', $tags['items']['type']);
+        self::assertSame(1, $tags['items']['minLength']);
+    }
+
+    #[Test]
+    public function deep_nesting_three_levels(): void
+    {
+        $json = (new McpRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'method' => 'POST',
+                'parameters' => [
+                    ['name' => 'storename', 'in' => 'path', 'required' => true, 'type' => 'string', 'description' => null, 'example' => null],
+                    ['name' => 'cartLineItems.variant.product', 'in' => 'body', 'required' => true, 'type' => 'string', 'description' => null, 'example' => null, 'rules' => ['required', 'string']],
+                ],
+            ]),
+        ]));
+        $doc  = $this->decode($json);
+        $deep = $doc['tools'][0]['input_schema']['properties']['cartLineItems']['properties']['variant']['properties']['product'];
+
+        self::assertSame('string', $deep['type']);
+    }
+
+    #[Test]
+    public function flat_parameters_still_render_unchanged(): void
+    {
+        $json = (new McpRenderer(self::META))->render(new Collection([
+            $this->endpoint(),
+        ]));
+        $doc  = $this->decode($json);
+        $props = $doc['tools'][0]['input_schema']['properties'];
+
+        self::assertSame('string',  $props['storename']['type']);
+        self::assertSame('integer', $props['limit']['type']);
+        self::assertSame(1,   $props['limit']['minimum']);
+        self::assertSame(250, $props['limit']['maximum']);
+        self::assertSame(['storename'], $doc['tools'][0]['input_schema']['required']);
+    }
+
     private function normalize(string $s): string
     {
         return trim((string) preg_replace('/\s+/', ' ', $s));

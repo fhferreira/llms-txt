@@ -77,6 +77,26 @@ final class RulesToJsonSchema
                         $schema['maximum'] = self::numeric($arg);
                     }
                     break;
+                case 'gt':
+                    if ($type === 'integer' || $type === 'number') {
+                        $schema['exclusiveMinimum'] = self::numeric($arg);
+                    }
+                    break;
+                case 'gte':
+                    if ($type === 'integer' || $type === 'number') {
+                        $schema['minimum'] = self::numeric($arg);
+                    }
+                    break;
+                case 'lt':
+                    if ($type === 'integer' || $type === 'number') {
+                        $schema['exclusiveMaximum'] = self::numeric($arg);
+                    }
+                    break;
+                case 'lte':
+                    if ($type === 'integer' || $type === 'number') {
+                        $schema['maximum'] = self::numeric($arg);
+                    }
+                    break;
             }
         }
 

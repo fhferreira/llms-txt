@@ -7,6 +7,7 @@ namespace Fhferreira\LlmsTxt\Generator;
 use Fhferreira\LlmsTxt\Generator\Inspectors\ApiResourceInspector;
 use Fhferreira\LlmsTxt\Generator\Inspectors\ControllerDocBlockInspector;
 use Fhferreira\LlmsTxt\Generator\Inspectors\FormRequestInspector;
+use Fhferreira\LlmsTxt\Generator\Inspectors\InlineValidationInspector;
 use Fhferreira\LlmsTxt\Generator\Inspectors\LlmsAttributeInspector;
 use Fhferreira\LlmsTxt\Generator\Inspectors\MiddlewareInspector;
 use Fhferreira\LlmsTxt\Generator\Inspectors\OpenApiOverlayInspector;
@@ -62,6 +63,12 @@ final class EndpointInspector
 
         // 5. Form Request rules → parameters
         (new FormRequestInspector())->apply($record, $route);
+
+        // 5b. Inline $request->validate([...]) / Validator::make(...) →
+        //     parameters (only fires for fields the previous inspectors haven't
+        //     already filled, so FormRequest / attribute / overlay stay
+        //     authoritative).
+        (new InlineValidationInspector())->apply($record, $route);
 
         // 6. API Resource return → response shape (best-effort)
         (new ApiResourceInspector())->apply($record, $route);
