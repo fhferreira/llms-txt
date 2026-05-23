@@ -143,4 +143,21 @@ final class FullTxtRendererTest extends TestCase
 
         self::assertStringContainsString('**Docs**: [https://docs.example.test/orders/get](https://docs.example.test/orders/get)', $out);
     }
+
+    #[Test]
+    public function handler_class_is_not_exposed(): void
+    {
+        $out = (new FullTxtRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'action'     => 'App\\Http\\Controllers\\Api\\V3\\OrderAPIController@orders',
+                'controller' => 'OrderAPI',
+                'name'       => 'api.v3.orders.list',
+            ]),
+        ]));
+
+        self::assertStringNotContainsString('Handler', $out);
+        self::assertStringNotContainsString('OrderAPIController', $out);
+        self::assertStringNotContainsString('App\\Http\\Controllers', $out);
+        self::assertStringContainsString('**Operation**: `api.v3.orders.list`', $out);
+    }
 }

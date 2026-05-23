@@ -63,6 +63,9 @@ Outputs (defaults):
 
 - `public/llms.txt`       — short curated index
 - `public/llms-full.txt`  — per-endpoint reference (params, request body, response examples)
+- `public/llms-mcp.json`  — MCP tool catalog + structured endpoint detail (machine-readable)
+
+Controller FQCNs are **never** written to any of these files. Only request/response-shaped data is public.
 
 ## Commands
 
@@ -74,8 +77,63 @@ Walks every route whose middleware chain includes the marker, runs the inspector
 |---|---|
 | `--out=…` | Override the llms.txt output path |
 | `--out-full=…` | Override the llms-full.txt output path |
+| `--out-mcp=…` | Override the llms-mcp.json output path |
 | `--overlay=…` | Path to an OpenAPI 3 JSON to merge in (overrides config) |
 | `--dry-run` | Print to stdout instead of writing |
+
+#### `llms-mcp.json` shape
+
+```json
+{
+  "spec_version": 1,
+  "generated_at": "2026-05-23T12:00:00Z",
+  "api":  { "base_url": "https://api.example.com", "auth": {"type": "bearer", "header": "Authorization"} },
+  "tools": [
+    {
+      "name":         "v3_orders_list",
+      "description":  "List orders",
+      "method":       "GET",
+      "path":         "/api/v3/{storename}/orders",
+      "scope":        "read",
+      "rate_limit":   {"requests": 180, "per_minutes": 1},
+      "input_schema": {
+        "type": "object",
+        "properties": {
+          "storename": {"type": "string",  "in": "path"},
+          "limit":     {"type": "integer", "in": "query", "minimum": 1, "maximum": 250}
+        },
+        "required": ["storename"],
+        "additionalProperties": false
+      }
+    }
+  ],
+  "endpoints": [ /* full request/response detail per endpoint */ ]
+}
+```
+
+Tool `name` resolution order:
+1. `#[Llms(name: '…')]` on the controller action
+2. Route name (`api.v3.orders.list` → `v3_orders_list`)
+3. METHOD + path tokens (`GET /api/v3/{storename}/orders/count` → `v3_orders_count`)
+
+Tool `description` resolution order:
+1. `#[Llms(description: '…')]`
+2. First line of the controller method's PHPDoc
+3. Auto-generated verb + last noun (`Delete order`)
+
+#### `#[Llms]` attribute
+
+Use the attribute as an opt-in escape hatch when route name / docblock aren't enough:
+
+```php
+use Fhferreira\LlmsTxt\Attributes\Llms;
+
+class OrderAPIController
+{
+    #[Llms(name: 'orders_list', description: 'List paginated orders for a store', scope: 'read')]
+    public function orders(ListOrdersRequest $request) { /* ... */ }
+}
+```
 
 ### `php artisan llms:cleanup-local`
 
@@ -99,7 +157,7 @@ See `config/llms-txt.php` after publishing. Highlights:
 |---|---|
 | `middleware_marker` | Alias used to tag routes (default: `llms`) |
 | `api.*` | Title, base URL, auth note shown at top of generated files |
-| `output.llms_txt` / `output.llms_full_txt` | Destination paths |
+| `output.llms_txt` / `output.llms_full_txt` / `output.llms_mcp_json` | Destination paths |
 | `openapi_overlay` | Optional path to an existing OpenAPI 3 JSON. When set, response/request examples and richer descriptions are merged in by path match. |
 | `grouping` | `tag` (from overlay), `controller`, or `prefix` |
 

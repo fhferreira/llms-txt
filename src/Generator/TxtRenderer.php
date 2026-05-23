@@ -69,8 +69,11 @@ final class TxtRenderer
             foreach ($group as $e) {
                 $method  = $e['method'];
                 $path    = $e['path'];
-                $summary = $e['summary'] ?: $this->fallbackSummary($e);
-                $line    = "- `{$method} {$path}` — {$summary}";
+                $summary = (string) ($e['summary'] ?? '');
+                $line    = "- `{$method} {$path}`";
+                if ($summary !== '') {
+                    $line .= " — {$summary}";
+                }
                 if (! empty($e['docUrl'])) {
                     $line .= " ([docs]({$e['docUrl']}))";
                 }
@@ -84,16 +87,6 @@ final class TxtRenderer
         $lines[] = '';
 
         return rtrim(implode("\n", $lines)) . "\n";
-    }
-
-    private function fallbackSummary(array $e): string
-    {
-        $action = (string) ($e['action'] ?? '');
-        if ($action !== '' && str_contains($action, '@')) {
-            return $action;
-        }
-
-        return 'No summary available.';
     }
 
     private function resolveBaseUrl(?OpenApiOverlay $overlay): ?string

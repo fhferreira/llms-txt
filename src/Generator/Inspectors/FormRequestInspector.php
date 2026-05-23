@@ -48,6 +48,7 @@ final class FormRequestInspector
                 'type'        => $type,
                 'description' => $this->summarizeRules($ruleList),
                 'example'     => null,
+                'rules'       => $ruleList,
             ];
         }
 

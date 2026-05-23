@@ -80,8 +80,7 @@ final class FullTxtRenderer
         }
 
         $meta = [];
-        if (! empty($e['name']))      $meta[] = "**Name**: `{$e['name']}`";
-        if (! empty($e['action']))    $meta[] = "**Handler**: `{$e['action']}`";
+        if (! empty($e['name']))      $meta[] = "**Operation**: `{$e['name']}`";
         if (! empty($e['auth']))      $meta[] = "**Auth**: {$e['auth']}";
         if (! empty($e['rateLimit'])) $meta[] = "**Rate limit**: {$e['rateLimit']}";
         if (! empty($e['docUrl']))    $meta[] = "**Docs**: [{$e['docUrl']}]({$e['docUrl']})";

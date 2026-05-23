@@ -49,8 +49,9 @@ return [
     |
     */
     'output' => [
-        'llms_txt'      => public_path('llms.txt'),
-        'llms_full_txt' => public_path('llms-full.txt'),
+        'llms_txt'       => public_path('llms.txt'),
+        'llms_full_txt'  => public_path('llms-full.txt'),
+        'llms_mcp_json'  => public_path('llms-mcp.json'),
     ],
 
     /*

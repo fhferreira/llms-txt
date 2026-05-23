@@ -115,4 +115,20 @@ final class TxtRendererTest extends TestCase
         self::assertSame("\n", substr($out, -1));
         self::assertNotSame("\n", substr($out, -2, 1), 'output should not end with double newline');
     }
+
+    #[Test]
+    public function handler_class_is_not_used_as_summary_fallback(): void
+    {
+        $out = (new TxtRenderer(self::META))->render(new Collection([
+            $this->endpoint([
+                'summary' => null,
+                'action'  => 'App\\Http\\Controllers\\Api\\V3\\OrderAPIController@orders',
+            ]),
+        ]));
+
+        self::assertStringNotContainsString('OrderAPIController', $out);
+        self::assertStringNotContainsString('App\\Http\\Controllers', $out);
+        self::assertStringContainsString('- `GET /orders`', $out);
+        self::assertStringNotContainsString('`GET /orders` —', $out, 'no trailing summary when none available');
+    }
 }
